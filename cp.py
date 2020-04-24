@@ -1,104 +1,71 @@
-#!/usr/bin/python3.5
+#!/usr/bin/env python3
+
+""" This module contains cp function. """
+
+
+__author__ = 'Kamil Janiec <kamil.p.janiec@gmail.com>'
+
 
 import os
-import sys
 
 
-def cp_file(source, destination, data_block=4096):
-    """Copies the source to destination"""
+def cp(src, dst, overwrite=False, chunk_size=65536):
+    """ Copy file from src to dst. """
+    src = os.path.realpath(src)
+    dst = os.path.realpath(dst)
 
-    if os.path.exists(destination):
-        print("Copy is not feasible. "
-              "File already exists: {}".format(destination), file=sys.stderr)
-    else:
-        with open(source, 'rb') as ifs:
-            with open(destination, 'wb') as ofs:
-                read_data = ifs.read(data_block)
-                while len(read_data) > 0:
-                    ofs.write(read_data)
-                    read_data = ifs.read(data_block)
+    if not os.path.exists(src):
+        raise FileNotFoundError(f'No such file: {src}')
+    
+    if os.path.isdir(src):
+        raise IsADirectoryError(f'Is a directory: {src}')
 
+    if os.path.isdir(dst):
+        dst = os.path.join(dst, os.path.basename(src))
 
-def cp_dir(source, destination):
-    """Copies the source directory to the destination directory."""
+    if os.path.isdir(dst):
+        raise IsADirectoryError(f'Is a directory: {dst}')
 
-    source_parent = os.path.dirname(source)
+    if os.path.isfile(dst) and overwrite is False:
+        raise FileExistsError(f'File exists: {dst}')
 
-    for root, dirs, files in os.walk(source):
-        """Preparation of fixed destination."""
-        relative_path = root.replace(source_parent, "")[1:]
-        fixed_destination = os.path.join(destination, relative_path)
-
-        if os.path.exists(fixed_destination):
-            print("Copy is not feasible. "
-                  "File already exists: {}".format(fixed_destination), file=sys.stderr)
-        else:
-            """Creation of new directory."""
-            os.mkdir(fixed_destination)
-
-        for file in files:
-            """Preparation of old and new absolute paths."""
-            file_old_location = os.path.join(root, file)
-            file_new_location = os.path.join(fixed_destination, file)
-            """Copying the file."""
-            cp_file(file_old_location, file_new_location)
+    with open(src, 'rb') as src_fh:
+        with open(dst, 'wb') as dst_fh:
+            for chunk in iter(lambda: src_fh.read(chunk_size), b''):
+                dst_fh.write(chunk)
 
 
-def is_syntax_valid():
-    """Syntax pre-check."""
+def cp_r(src, dst):
+    """ Copy dir from src to dst. """ 
+    src = os.path.realpath(src)
+    dst = os.path.realpath(dst)
 
-    if len(sys.argv) < 3:
-        return False
-    else:
-        return True
+    if not os.path.exists(src):
+        raise FileNotFoundError(f'No such directory: {src}')
+    
+    if os.path.isfile(src):
+        raise NotADirectoryError(f'Not a directory: {src}')
 
+    if os.path.isdir(dst):
+        dst = os.path.join(dst, os.path.basename(src))
 
-def are_paths_valid(paths):
-    """Paths pre-check."""
+    if os.path.isfile(dst):
+        raise NotADirectoryError('Not a directory: {dst}')
 
-    for path in paths:
-        if not os.path.exists(path):
-            return False
+    if os.path.isdir(dst):
+        raise FileExistsError(f'Directory exists: {dst}')
+    
+    if not os.path.isdir(dst):
+        os.mkdir(dst)
 
-    return True
-
-
-def get_abs_paths(paths):
-    """Returns absolute paths sequence"""
-
-    abs_paths = []
-
-    for path in paths:
-        abs_paths.append(os.path.abspath(path))
-
-    return abs_paths
-
-
-def main():
-
-    if not is_syntax_valid():
-        print("The syntax of the command is incorrect.", file=sys.stderr)
-        return 1
-    elif not are_paths_valid(sys.argv[1:]):
-        print("Some paths are not valid", file=sys.stderr)
-        return 2
-
-    abs_paths = get_abs_paths(sys.argv[1:-1])
-    destination = os.path.abspath(sys.argv[-1])
-
-    for file in abs_paths:
-        if os.path.isdir(file):
-            cp_dir(file, destination)
-        elif os.path.isfile(file):
-            file_name = os.path.basename(file)
-            fixed_destination = os.path.join(destination, file_name)
-            cp_file(file, fixed_destination)
-        else:
-            print("Unknown file will not be copied: "
-                  "{}".format(file))
-
-    return 0
+    for root, dirs, files in os.walk(src):
+        for dir_ in dirs:
+            dir_ = os.path.join(root, dir_)
+            os.mkdir(os.path.join(dst, os.path.relpath(dir_, src)))
+        for file_ in files:
+            file_ = os.path.join(root, file_)
+            cp(file_, os.path.join(dst, os.path.relpath(file_, src)))
 
 
 if __name__ == '__main__':
-    main()
+    cp_r('distcc-9', 'distcc-99')
